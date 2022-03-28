@@ -1,3 +1,5 @@
+import os
+import sys
 import pygame
 import random
 
@@ -7,7 +9,13 @@ pygame.font.init()
 font_size = 34
 font = pygame.font.Font('font_3.ttf', font_size)
 
-
+def load_image(name, colorkey=None):
+    fullname = os.path.join(name)
+    if not os.path.isfile(fullname):
+        print(f"Файл с изображением '{fullname}' не найден")
+        sys.exit()
+    image = pygame.image.load(fullname)
+    return [image, name]
 
 class Field:
     def __init__(self, width, height):
@@ -15,6 +23,9 @@ class Field:
         self.height = height
         self.field = [[0] * width for _ in range(height)]
         # значения по умолчанию
+        self.game_state = None
+        self.score = 0
+        self.changed = False
         self.left = 10
         self.top = 10
         self.cell_size = 30
@@ -41,6 +52,18 @@ class Field:
                     screen.blit(font.render(f'{self.field[j][i]}', True, [0, 0, 0]), (
                     (x + cell_size / 2) - font_size  * len(str(self.field[j][i])) / 3.5,
                     y + cell_size / 2 - font_size / 3))
+        screen.blit(font.render(f'СЧЁТ: {self.score}', True, [255, 255, 255]), (
+            (100, 100)))
+        if self.game_state is False:
+            screen.blit(font.render(f'Вы проиграли, попробуйте снова', True, [255, 0, 0]), (
+                (350, 200)))
+        elif self.game_state is True:
+            screen.blit(font.render(f'Победа, так держать', True, [124, 252, 0]), (
+                (460, 200)))
+        if self.game_state is not None:
+            screen.blit(font.render(f'Для перезапуска нажмите "Пробел"', True, [255, 255, 255]), (
+                (345, 800)))
+
 
     def add_new_plate(self):
         x_pos = random.randint(0, 3)
@@ -52,6 +75,7 @@ class Field:
 
     def create_field(self):
         self.field = [[0] * width for _ in range(height)]
+        self.score = 0
 
     def compress(self):
         changed = False
@@ -97,7 +121,6 @@ class Field:
         changed2 = self.merge()
         self.changed = changed1 or changed2
         self.field, temp = self.compress()
-        self.add_new_plate()
 
     def move_right(self):
         self.field = self.reverse()
@@ -115,9 +138,39 @@ class Field:
         self.move_right()
         self.field = self.transpose()
 
+    def is_win(self):
+        clear = False
+        for x_pos in range(4):
+            for y_pos in range(4):
+                if self.field[x_pos][y_pos] == 2048:
+                    return True
+                elif self.field[x_pos][y_pos] == 0:
+                    clear = True
+        if clear:
+            return None
+        for x_pos in range(self.width):
+            for y_pos in range(self.height - 1):
+                if self.field[x_pos][y_pos] == self.field[x_pos][y_pos + 1]:
+                    return None
+        for x_pos in range(self.width - 1):
+            for y_pos in range(self.height):
+                if self.field[y_pos][x_pos] == self.field[y_pos][x_pos + 1]:
+                    return None
+        return False
+    def count_score(self):
+        score = 0
+        for i in range(self.width):
+            for j in range(self.height):
+                score += self.field[i][j]
+        self.score = score
+
+
 
 size = width, height = 1280, 1024
 screen = pygame.display.set_mode(size)
+
+background = load_image('background.jpg')[0]
+
 
 field = Field(4, 4)
 cell_size = 120
@@ -126,17 +179,51 @@ field.create_field()
 field.add_new_plate()
 running = True
 while running:
+    screen.blit(background, (0, 0))
     for event in pygame.event.get():
-        if pygame.key.get_pressed()[pygame.K_RIGHT]:
-            field.move_right()
-        if pygame.key.get_pressed()[pygame.K_LEFT]:
-            field.move_left()
-        if pygame.key.get_pressed()[pygame.K_UP]:
-            field.move_up()
-        if pygame.key.get_pressed()[pygame.K_DOWN]:
-            field.move_down()
+        if field.game_state is None:
+            if pygame.key.get_pressed()[pygame.K_RIGHT]:
+                field.move_right()
+                field.count_score()
+                if field.is_win() is None and field.changed:
+                    field.add_new_plate()
+                elif field.is_win():
+                    field.game_state = True
+                elif field.is_win() is False:
+                    field.game_state = False
+            if pygame.key.get_pressed()[pygame.K_LEFT]:
+                field.move_left()
+                field.count_score()
+                if field.is_win() is None and field.changed:
+                    field.add_new_plate()
+                elif field.is_win():
+                    field.game_state = True
+                elif field.is_win() is False:
+                    field.game_state = False
+            if pygame.key.get_pressed()[pygame.K_UP]:
+                field.move_up()
+                field.count_score()
+                if field.is_win() is None and field.changed:
+                    field.add_new_plate()
+                elif field.is_win():
+                    field.game_state = True
+                elif field.is_win() is False:
+                    field.game_state = False
+            if pygame.key.get_pressed()[pygame.K_DOWN]:
+                field.move_down()
+                field.count_score()
+                if field.is_win() is None and field.changed:
+                    field.add_new_plate()
+                elif field.is_win():
+                    field.game_state = True
+                elif field.is_win() is False:
+                    field.game_state = False
+        else:
+            if pygame.key.get_pressed()[pygame.K_SPACE]:
+                field.create_field()
+                field.game_state = None
+                field.add_new_plate()
         if event.type == pygame.QUIT:
             running = False
-    screen.fill((0, 0, 0))
     field.render(screen)
     pygame.display.flip()
